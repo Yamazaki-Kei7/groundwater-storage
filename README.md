@@ -1,10 +1,11 @@
 # Groundwater Atlas
 
-衛星重力観測に基づく地下水貯留量の変化を、3D地図と地点時系列で探索する日本語WebGISです。
+衛星重力観測に基づく地下水貯留量の変化を、地球儀と地点時系列で探索する日本語WebGISです。
 
 - 公開サイト: https://Yamazaki-Kei7.github.io/groundwater-storage/
 - SvelteKit 3 / Svelte 5 / Tailwind CSS 4 / MapLibre GL JS 6 / deck.gl 9
-- 世界・日本・インド・北米・欧州・アマゾンの表示、3D/2D切替、高さ調整
+- ドラッグで地球儀を回転、スクロール・ピンチで拡大縮小
+- 世界・日本・インド・北米・欧州・アマゾンの表示、球面上のデータの3D柱/2D表示切替、高さ調整
 - 月別再生、欠測の表示、地点選択、提供された不確実性、時系列・CSV出力
 
 ## データの意味

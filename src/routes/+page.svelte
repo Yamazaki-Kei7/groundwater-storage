@@ -147,7 +147,7 @@
       </section>
       <section class="control-section">
         <h2><span>02</span> 表示を調整</h2>
-        <div class="flex items-center justify-between"><span class="field-label">地図の見方</span><div class="segmented"><button class:active={!flat} onclick={() => flat = false} aria-pressed={!flat}>3D</button><button class:active={flat} onclick={() => flat = true} aria-pressed={flat}>2D</button></div></div>
+        <div class="flex items-center justify-between"><span class="field-label">データの表示</span><div class="segmented"><button class:active={!flat} onclick={() => flat = false} aria-pressed={!flat}>3D</button><button class:active={flat} onclick={() => flat = true} aria-pressed={flat}>2D</button></div></div>
         <label class="height-label" for="height">柱の高さ <span>{(height / 1000).toFixed(1)} km / mm</span></label>
         <input id="height" type="range" min="100" max="2000" step="100" bind:value={height} disabled={flat} />
         <p class="hint">高さは偏差の大きさを誇張した表現です。</p>
@@ -166,8 +166,8 @@
     <div class="map-and-timeline">
       <section class="map-panel" aria-label="地下水貯留量の地図">
         <GroundwaterMap data={mapData} resolution={manifest?.resolution ?? 0.5} {height} {flat} colorLimit={manifest?.colorLimit ?? 300} {soften} {selected} region={regions[regionIndex]} onselect={i => selectedIndex = i} />
-        <div class="map-topline"><span class="map-badge"><span class:busy={loading}></span>{loading ? 'データを読み込み中' : missing ? 'この月は観測データなし' : `${flat ? '2D' : '3D'} · ${regions[regionIndex].name}`}</span><span class="map-date">{month.replace('-', ' / ')}</span></div>
-        <div class="map-instruction">{selected ? '別の柱をクリックして比較' : '柱をクリックして、その地点の変化をたどる'}<span>ドラッグで移動 · 右ドラッグで傾斜・回転</span></div>
+        <div class="map-topline"><span class="map-badge"><span class:busy={loading}></span>{loading ? 'データを読み込み中' : missing ? 'この月は観測データなし' : `地球儀 · ${flat ? '2D' : '3D'} · ${regions[regionIndex].name}`}</span><span class="map-date">{month.replace('-', ' / ')}</span></div>
+        <div class="map-instruction">{selected ? '別のセルをクリックして比較' : 'セルをクリックして、その地点の変化をたどる'}<span>ドラッグで地球儀を回転 · スクロールで拡大・縮小</span></div>
         {#if error}<div class="notice" role="alert"><strong>データを読み込めません</strong><p>{error}</p><button onclick={() => ready ? retry += 1 : location.reload()}>再試行</button></div>
         {:else if manifest && !manifest.ready}<div class="notice"><strong>公式データを準備中です</strong><p>観測値が導入されると、地図と時系列を表示します。</p></div>
         {:else if missing}<div class="missing-notice"><span>NO OBSERVATION</span><strong>{month} は欠測月です</strong><p>前後の月を選ぶと観測値を表示します。</p></div>{/if}
