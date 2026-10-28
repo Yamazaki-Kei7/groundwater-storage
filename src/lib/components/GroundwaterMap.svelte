@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import type { Map as LibreMap, HillshadeLayerSpecification, RasterDEMSourceSpecification } from 'maplibre-gl';
+  import type { Map as LibreMap, HillshadeLayerSpecification, RasterDEMSourceSpecification, SymbolLayerSpecification } from 'maplibre-gl';
   import { MapLibreOverlay } from '@deck.gl/maplibre';
   import { PolygonLayer, ScatterplotLayer } from '@deck.gl/layers';
   import type { PickingInfo } from '@deck.gl/core';
@@ -16,6 +16,8 @@
   const elevationSource = 'mapterhorn-elevation';
   const hillshadeId = 'mapterhorn-hillshade';
   const regionalPitch = 45;
+  const englishLabel: NonNullable<SymbolLayerSpecification['layout']>['text-field'] =
+    ['coalesce', ['get', 'name:en'], ['get', 'name_en'], ['get', 'name:latin'], ''];
   const demSource: RasterDEMSourceSpecification = {
     type: 'raster-dem', url: 'https://tiles.mapterhorn.com/tilejson.json',
     encoding: 'terrarium', tileSize: 512,
@@ -96,7 +98,7 @@
         setWorkerUrl(workerUrl);
         const instance = new Map({
           container,
-          style: 'https://tiles.openfreemap.org/styles/dark',
+          style: 'https://tiles.openfreemap.org/styles/positron',
           transformStyle: (_previous, next) => {
             // Keep geographic labels above both the relief and the water cells.
             const labelIndex = next.layers.findIndex(layer => layer.type === 'symbol');
@@ -108,9 +110,9 @@
               paint: {
                 'hillshade-exaggeration': 0.75,
                 'hillshade-illumination-anchor': 'map',
-                'hillshade-shadow-color': '#07131b',
-                'hillshade-highlight-color': '#b8c6bd',
-                'hillshade-accent-color': '#172b30'
+                'hillshade-shadow-color': '#68767a',
+                'hillshade-highlight-color': '#ffffff',
+                'hillshade-accent-color': '#a7b0af'
               }
             };
             layers.splice(labelIndex < 0 ? layers.length : labelIndex, 0, hillshade);
@@ -119,10 +121,17 @@
               // Terrain and hillshade need separate caches for correct rendering.
               sources: { ...next.sources, [hillshadeSource]: { ...demSource }, [elevationSource]: { ...demSource } },
               layers: layers.map(layer => {
-                if (layer.type === 'background') return { ...layer, paint: { ...layer.paint, 'background-color': '#2c3e43' } };
-                if (layer.type === 'symbol') return { ...layer, paint: {
-                  ...layer.paint, 'text-color': '#d7e2e2', 'text-halo-color': '#17262e', 'text-halo-width': 1
-                } };
+                if (layer.type === 'background') return { ...layer, paint: { ...layer.paint, 'background-color': '#f5f6f5' } };
+                if (layer.type === 'symbol') {
+                  const textField = layer.layout?.['text-field'];
+                  return { ...layer,
+                    layout: {
+                      ...layer.layout,
+                      ...(textField && JSON.stringify(textField).includes('name') ? { 'text-field': englishLabel } : {})
+                    },
+                    paint: { ...layer.paint, 'text-color': '#4b5560', 'text-halo-color': '#ffffff', 'text-halo-width': 1 }
+                  };
+                }
                 return layer;
               })
             };
@@ -139,11 +148,11 @@
           getTooltip: (info: PickingInfo<MapCell>) => {
             const object = visibleCell(info);
             return object ? {
-              text: `${object.lat.toFixed(2)}°, ${object.lon.toFixed(2)}°\n貯留量偏差 ${displayValue(object.value)} mm\n不確実性 ${Number.isFinite(object.uncertainty) ? object.uncertainty.toFixed(1) : '—'} mm\nクリックして時系列を表示`,
-              style: { backgroundColor: '#122332', color: '#f4f9fc', fontSize: '12px', padding: '12px', borderRadius: '8px' }
+              text: `${object.lat.toFixed(2)}°, ${object.lon.toFixed(2)}°\nStorage anomaly ${displayValue(object.value)} mm\nUncertainty ${Number.isFinite(object.uncertainty) ? object.uncertainty.toFixed(1) : '—'} mm`,
+              style: { backgroundColor: '#ffffff', color: '#25313b', fontSize: '12px', padding: '10px', borderRadius: '6px', border: '1px solid #dce2e5' }
             } : null;
           },
-          onError: () => { failure = '3D描画に失敗しました。ページを再読み込みするか、WebGL対応ブラウザーで開いてください。'; }
+          onError: () => { failure = 'Unable to render 3D. Reload the page or use a WebGL-compatible browser.'; }
         });
         instance.addControl(deck);
         instance.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
@@ -152,17 +161,17 @@
         instance.on('idle', refreshGroundElevations);
         instance.on('error', event => {
           if (('sourceId' in event && (event.sourceId === hillshadeSource || event.sourceId === elevationSource)) || event.error.message.includes('mapterhorn.com')) {
-            terrainFailure = '地形を読み込めませんでした。地下水データは引き続き確認できます。';
+            terrainFailure = 'Unable to load terrain. Groundwater data is still available.';
           } else {
-            failure = '背景地図を読み込めませんでした。ネットワーク接続をご確認ください。';
+            failure = 'Unable to load the basemap. Check your connection.';
           }
         });
         map = instance;
         overlay = deck;
       } catch {
-        failure = '地図を開始できません。WebGLが有効なブラウザーで開いてください。';
+        failure = 'Unable to start the map. Enable WebGL in your browser.';
       }
-    }).catch(() => { failure = '地図の読み込みに失敗しました。ページを再読み込みしてください。'; });
+    }).catch(() => { failure = 'Unable to load the map. Reload the page.'; });
     return () => { disposed = true; map?.remove(); };
   });
 
@@ -207,7 +216,7 @@
         id: 'selected-cell', data: selected ? [selected] : [],
         beforeId: beforeLabels,
         getPosition: d => [d.lon, d.lat, selectedElevation], getRadius: 8, radiusUnits: 'pixels',
-        filled: false, stroked: true, getLineColor: [255, 255, 255], lineWidthUnits: 'pixels', getLineWidth: 2,
+        filled: false, stroked: true, getLineColor: [37, 49, 59], lineWidthUnits: 'pixels', getLineWidth: 2,
         parameters: { depthCompare: 'less-equal', ...surfaceDepth },
         updateTriggers: { getPosition: [selectedElevation] }
       })
@@ -220,13 +229,13 @@
   });
 </script>
 
-<div class="map-canvas" bind:this={container} aria-label="地下水貯留量変化の地球儀"></div>
+<div class="map-canvas" bind:this={container} aria-label="Globe showing groundwater storage changes"></div>
 {#if failure || (terrain && terrainFailure)}
-  <div class="map-error" role="alert">{failure || terrainFailure}<button onclick={() => location.reload()}>再読み込み</button></div>
+  <div class="map-error" role="alert">{failure || terrainFailure}<button onclick={() => location.reload()}>Reload</button></div>
 {/if}
 
 <style>
   .map-canvas { position: absolute; inset: 0; z-index: 0; }
-  .map-error { position: absolute; inset: auto 16px 38px; z-index: 3; background: #402d21; padding: 12px; border: 1px solid #f09a56; font-size: 12px; border-radius: 8px; }
+  .map-error { position: absolute; inset: auto 16px 38px; z-index: 3; background: #fff8ee; padding: 12px; color: #75431c; border: 1px solid #dfb688; font-size: 12px; border-radius: 8px; }
   .map-error button { margin-left: 12px; text-decoration: underline; }
 </style>
