@@ -20,7 +20,7 @@
   let map = $state.raw<LibreMap | null>(null);
   let overlay = $state.raw<MapLibreOverlay | null>(null);
   let failure = $state('');
-  let previousRegion: Region | null = null;
+  let selectedCell = $derived(selected && data.find(cell => cell.lon === selected.lon && cell.lat === selected.lat));
 
   function visibleCell({ object, viewport, coordinate }: PickingInfo<MapCell>): MapCell | null {
     if (!object || !viewport || !coordinate || coordinate.length < 3 || !coordinate.every(Number.isFinite)) return null;
@@ -71,7 +71,6 @@
   $effect(() => {
     if (!overlay) return;
     const half = resolution * 0.46;
-    const selectedCell = selected && data.find(cell => cell.lon === selected.lon && cell.lat === selected.lat);
     const selectedElevation = !flat && selectedCell ? Math.abs(selectedCell.value) * height : 0;
     overlay.setProps({ layers: [
       new PolygonLayer<MapCell>({
@@ -101,10 +100,7 @@
 
   $effect(() => {
     if (!map) return;
-    if (previousRegion !== region) {
-      previousRegion = region;
-      map.jumpTo({ center: [region.lon, region.lat], zoom: region.zoom, pitch: 0, bearing: 0 });
-    }
+    map.jumpTo({ center: [region.lon, region.lat], zoom: region.zoom, pitch: 0, bearing: 0 });
   });
 </script>
 
