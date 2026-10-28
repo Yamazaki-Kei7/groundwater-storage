@@ -37,6 +37,7 @@
   let ready = $state(false);
   let retry = $state(0);
   let about = $state(false);
+  let settingsOpen = $state(false);
   let latitude = $state<number | undefined>(37);
   let longitude = $state<number | undefined>(137);
   let month = $derived(manifest?.months[monthIndex] ?? '—');
@@ -143,25 +144,30 @@
 
   <main class="workspace">
     <aside class="sidebar" aria-label="Map settings">
-      <section class="control-section">
-        <h2>Region</h2>
-        <div class="region-grid">{#each regions as region, i}<button class:active={regionIndex === i} aria-pressed={regionIndex === i} onclick={() => regionIndex = i}>{region.name}</button>{/each}</div>
-      </section>
-      <section class="control-section">
-        <h2>Display</h2>
-        <div class="segmented"><button class:active={flat} onclick={() => flat = true} aria-pressed={flat}>Surface</button><button class:active={!flat} onclick={() => flat = false} aria-pressed={!flat}>3D columns</button></div>
-        <label class="checkbox-label"><input type="checkbox" bind:checked={terrain} /><span>Show terrain</span></label>
-        {#if flat}
-          <label class="height-label" for="water-opacity">Opacity <span>{waterOpacity}%</span></label>
-          <input id="water-opacity" type="range" min="0" max="100" step="5" bind:value={waterOpacity} />
-        {:else}
-          <label class="height-label" for="terrain-exaggeration">Terrain height <span>{terrainExaggeration}×</span></label>
-          <input id="terrain-exaggeration" type="range" min="1" max="10" step="1" bind:value={terrainExaggeration} disabled={!terrain} />
-          <label class="height-label" for="height">Column height <span>{(height / 1000).toFixed(1)} km / mm</span></label>
-          <input id="height" type="range" min="100" max="2000" step="100" bind:value={height} />
-        {/if}
-        <label class="checkbox-label"><input type="checkbox" bind:checked={soften} /><span>Fade uncertain cells</span></label>
-      </section>
+      <button class="settings-toggle" type="button" aria-expanded={settingsOpen} aria-controls="map-settings" onclick={() => settingsOpen = !settingsOpen}>
+        <span>Map settings</span><span aria-hidden="true">{settingsOpen ? '−' : '+'}</span>
+      </button>
+      <div id="map-settings" class="settings-content" class:settings-open={settingsOpen}>
+        <section class="control-section">
+          <h2>Region</h2>
+          <div class="region-grid">{#each regions as region, i}<button class:active={regionIndex === i} aria-pressed={regionIndex === i} onclick={() => regionIndex = i}>{region.name}</button>{/each}</div>
+        </section>
+        <section class="control-section">
+          <h2>Display</h2>
+          <div class="segmented"><button class:active={flat} onclick={() => flat = true} aria-pressed={flat}>Surface</button><button class:active={!flat} onclick={() => flat = false} aria-pressed={!flat}>3D columns</button></div>
+          <label class="checkbox-label"><input type="checkbox" bind:checked={terrain} /><span>Show terrain</span></label>
+          {#if flat}
+            <label class="height-label" for="water-opacity">Opacity <span>{waterOpacity}%</span></label>
+            <input id="water-opacity" type="range" min="0" max="100" step="5" bind:value={waterOpacity} />
+          {:else}
+            <label class="height-label" for="terrain-exaggeration">Terrain height <span>{terrainExaggeration}×</span></label>
+            <input id="terrain-exaggeration" type="range" min="1" max="10" step="1" bind:value={terrainExaggeration} disabled={!terrain} />
+            <label class="height-label" for="height">Column height <span>{(height / 1000).toFixed(1)} km / mm</span></label>
+            <input id="height" type="range" min="100" max="2000" step="100" bind:value={height} />
+          {/if}
+          <label class="checkbox-label"><input type="checkbox" bind:checked={soften} /><span>Fade uncertain cells</span></label>
+        </section>
+      </div>
       <section class="legend-section">
         <div class="flex items-baseline justify-between"><h2>Storage anomaly</h2><span>mm water equivalent</span></div>
         <div class="legend-gradient"></div>

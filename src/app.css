@@ -42,6 +42,7 @@ h2 { font-size: 13px; font-weight: 600; }
 .workspace { display: grid; grid-template-columns: 240px minmax(0, 1fr) 280px; flex: 1; }
 .sidebar, .detail-panel { padding: 24px 20px; min-width: 0; background: var(--surface); }
 .sidebar { border-right: 1px solid var(--border); }
+.settings-toggle { display: none; }
 .control-section { padding: 24px 0; border-bottom: 1px solid var(--border); }
 .control-section:first-child { padding-top: 0; }
 .control-section h2 { margin-bottom: 14px; }
@@ -130,14 +131,18 @@ h2 { font-size: 13px; font-weight: 600; }
   .brand h1 { font-size: 15px; }
   .quiet-button { font-size: 11px; }
   .workspace { display: flex; flex-direction: column; }
-  .sidebar { padding: 20px 16px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .sidebar { padding: 0 16px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .settings-toggle { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-height: 48px; padding: 12px 0; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600; text-align: left; }
+  .settings-toggle > span:last-child { color: var(--muted); font-size: 20px; line-height: 1; }
+  .settings-content { display: none; }
+  .settings-content.settings-open { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; padding: 8px 0 20px; }
   .control-section { padding: 0; border: 0; }
   .region-grid { grid-template-columns: repeat(2, 1fr); }
   .region-grid button, .segmented button, .height-label, .checkbox-label { font-size: 11px; }
   .height-label { flex-wrap: wrap; margin-top: 16px; gap: 4px; }
   .checkbox-label { margin-top: 14px; }
-  .legend-section { grid-column: 1 / -1; padding-top: 16px; border-top: 1px solid var(--border); }
-  .map-panel { min-height: 440px; }
+  .legend-section { padding: 12px 0 16px; border-top: 1px solid var(--border); }
+  .map-panel { min-height: max(440px, 60dvh); }
   .timeline { padding: 16px; }
   .timeline-heading { flex-wrap: wrap; gap: 6px; }
   .timeline-heading h2 { font-size: 18px; }
