@@ -27,14 +27,14 @@
 
 ## Task 1: データ処理と静的アプリ基盤
 
-Files: package.json, vite.config.ts, svelte.config.js, src/lib/data.ts, src/lib/data.test.ts, scripts/prepare_data.py, scripts/test_prepare_data.py.
+Files: package.json, vite.config.ts, src/lib/data.ts, src/lib/data.test.ts, scripts/prepare_data.py, scripts/test_prepare_data.py.
 
 Interface: Manifestで年月・格子情報を提供。decodeFrame(buffer, cellCount)で偏差と不確実性を復元。loadFrameとloadSeriesはAbortSignalを受ける。
 
-- [ ] バイナリ長・欠測・符号・経度正規化を検査するテストを書き、失敗を確認。
-- [ ] SvelteKit 3静的出力、Tailwind Vite統合、型検査・テストコマンドを構成。
-- [ ] Python変換とTypeScript復元を実装。元データと照合可能なマニフェストを出力。
-- [ ] テストと型検査を実行し、結果を記録してコミット。
+- [x] バイナリ長・欠測・符号・経度正規化を検査するテストを書き、失敗を確認。
+- [x] SvelteKit 3静的出力、Tailwind Vite統合、型検査・テストコマンドを構成。
+- [x] Python変換とTypeScript復元を実装。元データと照合可能なマニフェストを出力。
+- [x] テストと型検査を実行し、結果を記録してコミット。
 
 ## Task 2: 地図・時系列UI
 
@@ -42,17 +42,17 @@ Files: src/routes/+page.svelte, src/lib/components/GroundwaterMap.svelte, src/li
 
 Interface: GroundwaterMapはcells/frame/height/flatを受け取り、選択セルのインデックスを通知。TimeSeriesは年月と値・不確実性の配列を受け取る。
 
-- [ ] 欠測で線を分割するchartPathsのテストを書き、失敗を確認。
-- [ ] 地図・柱・地点選択・月別再生・プリセット・CSV出力・エラー表示を実装。
-- [ ] テスト・型検査・本番ビルドを実行。実ブラウザーで表示と操作を確認。
-- [ ] コミット。
+- [x] 欠測で線を分割するchartPathsのテストを書き、失敗を確認。
+- [x] 地図・柱・地点選択・月別再生・プリセット・CSV出力・エラー表示を実装。
+- [x] テスト・型検査・本番ビルドを実行。実ブラウザーで表示と操作を確認。
+- [x] コミット。
 
 ## Task 3: 実データ導入・公開
 
 Files: .github/workflows/deploy.yml, README.md, static/data/*.
 
-- [ ] CDS設定が利用可能になったら公式データを取得し、SHA256を記録して変換。
-- [ ] 原本と出力のセル値・時刻・欠測・不確実性を照合。
+- [x] CDS設定が利用可能になったら公式データを取得し、SHA256を記録して変換。
+- [x] 原本と出力のセル値・時刻・欠測・不確実性を照合。
 - [ ] GitHubリポジトリとPagesを設定し、Actionsでデプロイ。
-- [ ] 独立レビュー、全テスト・型検査・ビルドを実施。
+- [x] 独立レビュー、全テスト・型検査・ビルドを実施。
 - [ ] 公開URLで3D・時系列・データロードを確認。
