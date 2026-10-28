@@ -11,7 +11,7 @@
     { name: 'World', lon: 15, lat: 15, zoom: 0.7 },
     { name: 'Japan', lon: 137, lat: 37, zoom: 4.3 },
     { name: 'India', lon: 79, lat: 25, zoom: 3.8 },
-    { name: 'N. America', lon: -105, lat: 37, zoom: 3 },
+    { name: 'North America', lon: -105, lat: 37, zoom: 3 },
     { name: 'Europe', lon: 12, lat: 49, zoom: 3.6 },
     { name: 'Amazon', lon: -62, lat: -6, zoom: 3.6 }
   ];
@@ -149,8 +149,12 @@
       </button>
       <div id="map-settings" class="settings-content" class:settings-open={settingsOpen}>
         <section class="control-section">
-          <h2>Region</h2>
-          <div class="region-grid">{#each regions as region, i}<button class:active={regionIndex === i} aria-pressed={regionIndex === i} onclick={() => regionIndex = i}>{region.name}</button>{/each}</div>
+          <h2><label for="region">Region</label></h2>
+          <select id="region" class="region-select" bind:value={regionIndex}>
+            {#each regions as region, i}
+              <option value={i}>{region.name}</option>
+            {/each}
+          </select>
         </section>
         <section class="control-section">
           <h2>Display</h2>
