@@ -55,12 +55,6 @@ export function decodeSeries(buffer: ArrayBuffer, localIndex: number, chunkCells
   return { values: decoded.values.slice(start, start + monthCount), uncertainty: decoded.uncertainty.slice(start, start + monthCount) };
 }
 
-export function frameCells(cells: Cell[], frame: Frame | null): MapCell[] {
-  if (!frame) return [];
-  return cells.flatMap((cell, index) => Number.isFinite(frame.values[index])
-    ? [{ ...cell, index, value: frame.values[index], uncertainty: frame.uncertainty[index] }] : []);
-}
-
 export function chartPaths(values: ArrayLike<number>, width: number, height: number, limit: number): string[] {
   const paths: string[] = [];
   let current = '';

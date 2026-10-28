@@ -4,9 +4,10 @@
   import { MapLibreOverlay } from '@deck.gl/maplibre';
   import { PolygonLayer, ScatterplotLayer } from '@deck.gl/layers';
   import type { PickingInfo } from '@deck.gl/core';
-  import type { Cell, MapCell } from '#lib/data.ts';
+  import type { Cell, Frame, MapCell } from '#lib/data.ts';
   import { displayValue } from '#lib/data.ts';
   import { isGlobePositionVisible } from '#lib/globe.ts';
+  import { createCellGeometry, type IndexedCell } from '#lib/cell-geometry.ts';
   import 'maplibre-gl/dist/maplibre-gl.css';
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 
@@ -27,10 +28,14 @@
   // A constant depth bias keeps surface cells above the globe's finer mesh,
   // without disabling far-side occlusion or changing the data's elevation.
   const surfaceDepth = { depthBias: 0, depthBiasSlopeScale: -100 };
-  let { data, resolution, height, flat, terrain, terrainExaggeration, waterOpacity, colorLimit, soften, selected, region, onselect }: {
-    data: MapCell[]; resolution: number; height: number; flat: boolean;
+  // Fill colours blend from neutral toward the sign's colour as |value| nears the limit.
+  const neutralColor = [139, 157, 167];
+  const negativeColor = [240, 149, 79];
+  const positiveColor = [54, 183, 229];
+  let { cells, frame, resolution, height, flat, terrain, terrainExaggeration, waterOpacity, colorLimit, soften, selectedIndex, region, onselect }: {
+    cells: Cell[]; frame: Frame | null; resolution: number; height: number; flat: boolean;
     terrain: boolean; terrainExaggeration: number; waterOpacity: number;
-    colorLimit: number; soften: boolean; selected: Cell | null;
+    colorLimit: number; soften: boolean; selectedIndex: number | null;
     region: Region; onselect: (index: number) => void;
   } = $props();
   let container: HTMLDivElement;
@@ -41,11 +46,22 @@
   let styleReady = $state(false);
   let beforeLabels = $state<string | undefined>();
   let groundElevations = $state.raw<ReadonlyMap<number, number>>(new Map());
-  let selectedGround = $state(0);
-  let selectedCell = $derived(selected && data.find(cell => cell.lon === selected.lon && cell.lat === selected.lat));
+  let groundDirty = true;
+  let selected = $derived(selectedIndex === null ? null : cells[selectedIndex] ?? null);
+  let selectedValue = $derived(selectedIndex === null ? undefined : frame?.values[selectedIndex]);
+  let geometry = $derived(createCellGeometry(cells));
+  let data = $derived(geometry.forFrame(frame));
+  // Selection can change while the camera and DEM remain idle; groundElevations marks a terrain refresh.
+  let selectedGround = $derived.by(() => {
+    void groundElevations;
+    const elevation = map && terrain && !flat && selected ? map.queryTerrainElevation([selected.lon, selected.lat]) : null;
+    return elevation !== null && Number.isFinite(elevation) ? elevation : 0;
+  });
 
-  function visibleCell({ object, viewport, coordinate, x, y }: PickingInfo<MapCell>): MapCell | null {
-    if (!object || !viewport || !coordinate || coordinate.length < 3 || !coordinate.every(Number.isFinite)) return null;
+  function visibleCell({ object, viewport, coordinate, x, y }: PickingInfo<IndexedCell>): MapCell | null {
+    const index = object?.index ?? -1;
+    const value = frame?.values[index];
+    if (!object || !frame || value === undefined || !Number.isFinite(value) || !viewport || !coordinate || coordinate.length < 3 || !coordinate.every(Number.isFinite)) return null;
     // Picking has its own framebuffer, without the basemap's globe depth.
     // Use the actual hit, since a visible column top can have hidden lower sides.
     const position: [number, number, number] = [coordinate[0], coordinate[1], Math.max(0, coordinate[2])];
@@ -63,25 +79,25 @@
         if (distance(position) > surfaceDistance * (1 + 1 / Math.max(viewport.height, 1))) return null;
       }
     }
-    return object;
+    return { ...object, index, value, uncertainty: frame.uncertainty[index] };
   }
 
   function refreshGroundElevations() {
-    if (!map || flat || !terrain) return;
+    if (!map || flat || !terrain || !groundDirty) return;
+    groundDirty = false;
     const bounds = map.getBounds();
-    const selectedElevation = selected ? map.queryTerrainElevation([selected.lon, selected.lat]) : null;
-    selectedGround = selectedElevation !== null && Number.isFinite(selectedElevation) ? selectedElevation : 0;
     const elevations = new Map<number, number>();
     let elevationsChanged = false;
-    for (const cell of data) {
+    for (let index = 0; index < cells.length; index++) {
+      const cell = cells[index];
       // Globe bounds can extend past ±180°, while data longitudes are wrapped.
-      if (![cell.lon, cell.lon - 360, cell.lon + 360].some(lon => bounds.contains([lon, cell.lat]))) continue;
+      if (!bounds.contains([cell.lon, cell.lat]) && !bounds.contains([cell.lon - 360, cell.lat]) && !bounds.contains([cell.lon + 360, cell.lat])) continue;
       // queryTerrainElevation already includes exaggeration. Sample the cell
       // center, so the entire column has a level base and its height stays |value|.
       const elevation = map.queryTerrainElevation([cell.lon, cell.lat]);
       if (elevation !== null && Number.isFinite(elevation)) {
-        elevations.set(cell.index, elevation);
-        if (groundElevations.get(cell.index) !== elevation) elevationsChanged = true;
+        elevations.set(index, elevation);
+        if (groundElevations.get(index) !== elevation) elevationsChanged = true;
       }
     }
     // An update repaints the map and fires idle again; avoid a render loop.
@@ -145,7 +161,7 @@
         const deck = new MapLibreOverlay({
           // Share the globe's depth buffer so far-side columns stay behind the Earth.
           interleaved: true,
-          getTooltip: (info: PickingInfo<MapCell>) => {
+          getTooltip: (info: PickingInfo<IndexedCell>) => {
             const object = visibleCell(info);
             return object ? {
               text: `${object.lat.toFixed(2)}°, ${object.lon.toFixed(2)}°\nStorage anomaly ${displayValue(object.value)} mm\nUncertainty ${Number.isFinite(object.uncertainty) ? object.uncertainty.toFixed(1) : '—'} mm`,
@@ -158,6 +174,8 @@
         instance.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
         instance.addControl(new ScaleControl({ unit: 'metric' }), 'bottom-left');
         instance.on('style.load', () => { styleReady = true; });
+        instance.on('moveend', () => { groundDirty = true; });
+        instance.on('sourcedata', event => { if (event.sourceId === elevationSource) groundDirty = true; });
         instance.on('idle', refreshGroundElevations);
         instance.on('error', event => {
           if (('sourceId' in event && (event.sourceId === hillshadeSource || event.sourceId === elevationSource)) || event.error.message.includes('mapterhorn.com')) {
@@ -177,9 +195,15 @@
 
   $effect(() => {
     if (!map || !styleReady) return;
+    groundDirty = true;
     map.setLayoutProperty(hillshadeId, 'visibility', terrain ? 'visible' : 'none');
     map.setTerrain(terrain && !flat ? { source: elevationSource, exaggeration: terrainExaggeration } : null);
-    if (flat || !terrain) { groundElevations = new Map(); selectedGround = 0; }
+    if (flat || !terrain) groundElevations = new Map();
+  });
+
+  $effect(() => {
+    void cells;
+    if (map && styleReady) untrack(() => { groundDirty = true; refreshGroundElevations(); });
   });
 
   $effect(() => {
@@ -190,27 +214,38 @@
     if (!overlay) return;
     const half = resolution * (flat ? 0.5 : terrain ? 0.24 : 0.46);
     const baseAlpha = flat ? 255 * waterOpacity / 100 : 220;
-    const selectedElevation = flat ? 0 : selectedGround + (selectedCell ? Math.abs(selectedCell.value) * height : 0);
+    const currentFrame = frame;
+    const selectedElevation = flat ? 0 : selectedGround + (selectedValue !== undefined && Number.isFinite(selectedValue) ? Math.abs(selectedValue) * height : 0);
     overlay.setProps({ layers: [
-      new PolygonLayer<MapCell, OrderedLayerProps>({
-        id: 'groundwater', data, pickable: '3d', extruded: !flat,
+      new PolygonLayer<IndexedCell, OrderedLayerProps>({
+        // Geometry and cell IDs stay fixed across months; only values change.
+        id: 'groundwater', data, visible: currentFrame !== null, pickable: '3d', extruded: !flat,
         beforeId: beforeLabels,
         parameters: flat ? surfaceDepth : { depthBias: 0, depthBiasSlopeScale: 0 },
         getPolygon: (d) => {
           const base = flat ? 0 : groundElevations.get(d.index) ?? 0;
           return [[d.lon - half, d.lat - half, base], [d.lon + half, d.lat - half, base], [d.lon + half, d.lat + half, base], [d.lon - half, d.lat + half, base]];
         },
-        getElevation: (d) => Math.abs(d.value), elevationScale: height,
-        getFillColor: (d) => {
-          const ratio = Math.min(Math.abs(d.value) / Math.max(colorLimit, 1), 1);
-          const target = d.value < 0 ? [240, 149, 79] : [54, 183, 229];
-          const neutral = [139, 157, 167];
-          const alpha = soften && Number.isFinite(d.uncertainty) && Math.abs(d.value) <= d.uncertainty ? baseAlpha * 75 / 220 : baseAlpha;
-          return [0, 1, 2].map(i => Math.round(neutral[i] + (target[i] - neutral[i]) * ratio)).concat(alpha) as [number, number, number, number];
+        getElevation: ({ index }) => {
+          const value = currentFrame?.values[index];
+          return value !== undefined && Number.isFinite(value) ? Math.abs(value) : 0;
+        }, elevationScale: height,
+        getFillColor: ({ index }) => {
+          const value = currentFrame?.values[index];
+          if (value === undefined || !Number.isFinite(value)) return [0, 0, 0, 0];
+          const uncertainty = currentFrame?.uncertainty[index];
+          const ratio = Math.min(Math.abs(value) / Math.max(colorLimit, 1), 1);
+          const alpha = soften && uncertainty !== undefined && Number.isFinite(uncertainty) && Math.abs(value) <= uncertainty ? baseAlpha * 75 / 220 : baseAlpha;
+          const target = value < 0 ? negativeColor : positiveColor;
+          const blend = (i: number) => Math.round(neutralColor[i] + (target[i] - neutralColor[i]) * ratio);
+          return [blend(0), blend(1), blend(2), alpha];
         },
         stroked: false, material: { ambient: 0.7, diffuse: 0.5, shininess: 12 },
-        onClick: (info: PickingInfo<MapCell>) => { const object = visibleCell(info); if (object) onselect(object.index); },
-        updateTriggers: { getFillColor: [colorLimit, soften, flat, waterOpacity], getPolygon: [resolution, flat, terrain, groundElevations] }
+        onClick: (info: PickingInfo<IndexedCell>) => { const object = visibleCell(info); if (object) onselect(object.index); },
+        updateTriggers: {
+          getElevation: [currentFrame], getFillColor: [currentFrame, colorLimit, soften, flat, waterOpacity],
+          getPolygon: [resolution, flat, terrain, groundElevations]
+        }
       }),
       new ScatterplotLayer<Cell, OrderedLayerProps>({
         id: 'selected-cell', data: selected ? [selected] : [],

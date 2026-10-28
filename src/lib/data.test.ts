@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { decodeFrame, decodeSeries, chartPaths, frameCells, loadBinary, nearestCell, normalizeLongitude, seriesCsv } from './data';
+import { decodeFrame, decodeSeries, chartPaths, loadBinary, nearestCell, normalizeLongitude, seriesCsv } from './data';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -30,7 +30,6 @@ describe('scientific data integrity', () => {
     expect(frame.values[1]).toBe(0);
     expect(frame.values[2]).toBeNaN();
     expect(frame.uncertainty[0]).toBe(5);
-    expect(frameCells([{lon: 0, lat: 10}, {lon: 1, lat: 10}, {lon: 2, lat: 10}], frame).map(d => d.index)).toEqual([0, 1]);
   });
   it('rejects incomplete binary responses instead of mapping wrong cells', () => {
     expect(() => decodeFrame(new ArrayBuffer(8), 3)).toThrow();
