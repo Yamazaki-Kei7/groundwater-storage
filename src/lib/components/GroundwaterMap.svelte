@@ -12,7 +12,7 @@
 
   type Region = { lon: number; lat: number; zoom: number };
   type OrderedLayerProps = { beforeId?: string };
-  const terrainSource = 'mapterhorn-dem';
+  const hillshadeSource = 'mapterhorn-dem';
   const elevationSource = 'mapterhorn-elevation';
   const hillshadeId = 'mapterhorn-hillshade';
   const regionalPitch = 45;
@@ -70,16 +70,20 @@
     const selectedElevation = selected ? map.queryTerrainElevation([selected.lon, selected.lat]) : null;
     selectedGround = selectedElevation !== null && Number.isFinite(selectedElevation) ? selectedElevation : 0;
     const elevations = new Map<number, number>();
+    let elevationsChanged = false;
     for (const cell of data) {
       // Globe bounds can extend past ±180°, while data longitudes are wrapped.
       if (![cell.lon, cell.lon - 360, cell.lon + 360].some(lon => bounds.contains([lon, cell.lat]))) continue;
       // queryTerrainElevation already includes exaggeration. Sample the cell
       // center, so the entire column has a level base and its height stays |value|.
       const elevation = map.queryTerrainElevation([cell.lon, cell.lat]);
-      if (elevation !== null && Number.isFinite(elevation)) elevations.set(cell.index, elevation);
+      if (elevation !== null && Number.isFinite(elevation)) {
+        elevations.set(cell.index, elevation);
+        if (groundElevations.get(cell.index) !== elevation) elevationsChanged = true;
+      }
     }
     // An update repaints the map and fires idle again; avoid a render loop.
-    if (elevations.size !== groundElevations.size || [...elevations].some(([index, elevation]) => groundElevations.get(index) !== elevation)) {
+    if (elevationsChanged || elevations.size !== groundElevations.size) {
       groundElevations = elevations;
     }
   }
@@ -99,7 +103,7 @@
             beforeLabels = next.layers[labelIndex]?.id;
             const layers = [...next.layers];
             const hillshade: HillshadeLayerSpecification = {
-              id: hillshadeId, type: 'hillshade', source: terrainSource,
+              id: hillshadeId, type: 'hillshade', source: hillshadeSource,
               layout: { visibility: terrain ? 'visible' : 'none' },
               paint: {
                 'hillshade-exaggeration': 0.75,
@@ -113,7 +117,7 @@
             return {
               ...next, projection: { type: 'globe' },
               // Terrain and hillshade need separate caches for correct rendering.
-              sources: { ...next.sources, [terrainSource]: { ...demSource }, [elevationSource]: { ...demSource } },
+              sources: { ...next.sources, [hillshadeSource]: { ...demSource }, [elevationSource]: { ...demSource } },
               layers: layers.map(layer => {
                 if (layer.type === 'background') return { ...layer, paint: { ...layer.paint, 'background-color': '#2c3e43' } };
                 if (layer.type === 'symbol') return { ...layer, paint: {
@@ -147,7 +151,7 @@
         instance.on('style.load', () => { styleReady = true; });
         instance.on('idle', refreshGroundElevations);
         instance.on('error', event => {
-          if (('sourceId' in event && (event.sourceId === terrainSource || event.sourceId === elevationSource)) || event.error.message.includes('mapterhorn.com')) {
+          if (('sourceId' in event && (event.sourceId === hillshadeSource || event.sourceId === elevationSource)) || event.error.message.includes('mapterhorn.com')) {
             terrainFailure = '地形を読み込めませんでした。地下水データは引き続き確認できます。';
           } else {
             failure = '背景地図を読み込めませんでした。ネットワーク接続をご確認ください。';
@@ -176,6 +180,7 @@
   $effect(() => {
     if (!overlay) return;
     const half = resolution * (flat ? 0.5 : terrain ? 0.24 : 0.46);
+    const baseAlpha = flat ? 255 * waterOpacity / 100 : 220;
     const selectedElevation = flat ? 0 : selectedGround + (selectedCell ? Math.abs(selectedCell.value) * height : 0);
     overlay.setProps({ layers: [
       new PolygonLayer<MapCell, OrderedLayerProps>({
@@ -191,7 +196,6 @@
           const ratio = Math.min(Math.abs(d.value) / Math.max(colorLimit, 1), 1);
           const target = d.value < 0 ? [240, 149, 79] : [54, 183, 229];
           const neutral = [139, 157, 167];
-          const baseAlpha = flat ? 255 * waterOpacity / 100 : 220;
           const alpha = soften && Number.isFinite(d.uncertainty) && Math.abs(d.value) <= d.uncertainty ? baseAlpha * 75 / 220 : baseAlpha;
           return [0, 1, 2].map(i => Math.round(neutral[i] + (target[i] - neutral[i]) * ratio)).concat(alpha) as [number, number, number, number];
         },
@@ -217,10 +221,8 @@
 </script>
 
 <div class="map-canvas" bind:this={container} aria-label="地下水貯留量変化の地球儀"></div>
-{#if failure}
-  <div class="map-error" role="alert">{failure}<button onclick={() => location.reload()}>再読み込み</button></div>
-{:else if terrain && terrainFailure}
-  <div class="map-error" role="alert">{terrainFailure}<button onclick={() => location.reload()}>再読み込み</button></div>
+{#if failure || (terrain && terrainFailure)}
+  <div class="map-error" role="alert">{failure || terrainFailure}<button onclick={() => location.reload()}>再読み込み</button></div>
 {/if}
 
 <style>
