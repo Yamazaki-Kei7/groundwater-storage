@@ -1,54 +1,93 @@
 # Groundwater Atlas
 
-衛星重力観測に基づく地下水貯留量の変化を、地球儀と地点時系列で探索する日本語WebGISです。
+An English-language WebGIS with a minimal, light interface for exploring satellite-derived groundwater storage anomalies on an interactive globe and in monthly time series.
 
-- 公開サイト: https://Yamazaki-Kei7.github.io/groundwater-storage/
-- SvelteKit 3 / Svelte 5 / Tailwind CSS 4 / MapLibre GL JS 6 / deck.gl 9
-- ドラッグで地球儀を回転、スクロール・ピンチで拡大縮小
-- 世界・日本・インド・北米・欧州・アマゾンの表示、球面上のデータの3D柱/2D表示切替、高さ調整
-- Mapterhornの立体地形と「3D柱」を初期表示。地形の標高は初期値5倍（1〜10倍で調整）、柱の高さとは独立して設定
-- 陰影地形と半透明の色面を重ねる「地形比較」に切替可能。地形のオン／オフと色の濃さを調整可能
-- 月別再生、欠測の表示、地点選択、提供された不確実性、時系列・CSV出力
+[Open the live site](https://yamazaki-kei7.github.io/groundwater-storage/)
 
-## データの意味
+The app uses SvelteKit 3, Svelte 5, Tailwind CSS 4, MapLibre GL JS 6, and deck.gl 9. It is prerendered and deployed as a static site; viewing the bundled groundwater data does not require a backend or CDS credentials.
 
-[Copernicus C3Sの公式地下水データ](https://cds.climate.copernicus.eu/datasets/satellite-groundwater-storage?tab=overview) v1.0を使用しています。2026年10月28日の取得時点の提供期間は **2002年4月〜2023年9月**。258暦月のうち225観測月・33欠測月、59,018陸域格子です。現在までの未提供値を推定・補間していません。
+## Exploring the map
 
-数値は **2003〜2022年平均に対する地下水貯留量の偏差（mm相当水高）** です。絶対的な地下水量、水位、地中深度ではありません。青は正、橙は負、柱の高さは偏差の絶対値を誇張して示します。格子間隔0.5°に対し、実効空間解像度は約250〜300 kmです。
+- Drag to rotate the globe and scroll or pinch to zoom. Region presets cover the world, Japan, India, North America, Europe, and the Amazon.
+- The initial view shows **3D columns with terrain enabled**, terrain exaggerated by **5×**, and the final month in the bundled record (**September 2023**).
+- Switch between **3D columns** and **Surface**. Both modes use the globe projection; Surface uses flat colored cells and a top-down view for terrain comparison rather than a separate planar map.
+- Step through calendar months or play the timeline at 0.5×, 1×, 2×, or 4× speed. Missing months remain in the timeline. Playback stops at the end; starting playback from the last month restarts from the beginning.
+- Click a visible cell or enter latitude and longitude to select the nearest land grid cell. The detail panel shows its value, supplied uncertainty, and full time series. Click the chart to select a month.
+- Export the selected cell's time series as CSV with the columns `month`, `gwsc_mm`, and `gwsc_uncertainty_mm`.
+- Optionally fade cells where the absolute anomaly is less than or equal to the supplied uncertainty. This changes their appearance, not their values or CSV output.
 
-不確実性は製品の `gwsc_uncertainty` をそのまま表示します。グラフの破線は値±提供された不確実性で、特定の信頼水準を意味しません。欠測はNaN・グラフの空白・CSVの空欄として扱います。全期間共通の色尺度は絶対値の98パーセンタイルを50 mm単位で切り上げ、範囲外は端色に飽和します。
+### Terrain and display modes
 
-出典: Copernicus Climate Change Service (C3S) / ECMWF / GFZ, *C3S Globally Gridded Groundwater Storage Change*, v1.0. DOI: [10.5880/GFZ.C3S_GWSC_v1.0](https://doi.org/10.5880/GFZ.C3S_GWSC_v1.0)。データ利用条件は [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。原本からFloat32配列への変換・並べ替え・gzip圧縮を行っています。詳しくは[公式製品ガイド](https://confluence.ecmwf.int/x/sA0nJw)をご覧ください。
+**3D columns:** Mapterhorn elevation tiles provide raised terrain and hillshading. Terrain exaggeration ranges from 1× to 10×; 1× uses the source elevations without vertical exaggeration. Selecting a regional preset tilts the camera to 45°, while the world preset uses a top-down view. Column bases use the terrain elevation sampled at each cell center when available. Columns become narrower while terrain is enabled so that more relief remains visible.
 
-背景地図は [OpenFreeMap](https://openfreemap.org/) / OpenMapTiles / OpenStreetMap。地形は [Mapterhorn](https://mapterhorn.com/) のTerrarium標高タイル（512 px）を [公式TileJSON](https://tiles.mapterhorn.com/tilejson.json) から読み込み、陰影として描画します。背景地図と地形の取得には外部通信を使用します。地形の原データと利用条件は [Mapterhornの出典一覧](https://mapterhorn.com/attribution/) を参照してください。
+Column height is the **absolute groundwater anomaly** multiplied by a separate visual scale, adjustable from 0.1 to 2.0 km per mm (default: 0.7 km per mm). Both positive and negative anomalies extend upward; color indicates the sign. Column height does not represent water level, groundwater depth, or terrain elevation.
 
-初期表示の「3D柱」ではMapterhornの標高を立体化し、起伏を5倍に誇張します。「地形の高さの誇張」で1〜10倍に変更でき、1倍は実際の標高です。地域を選ぶと45°の俯角になり、拡大すると山地の起伏を見比べられます。柱の根元はセル中心の地表標高に合わせ、高さは偏差の絶対値を別の尺度で表します。地形が見えるよう、立体地形を表示する間は柱の幅を細くします。
+**Surface:** The app disables raised terrain and overlays colored cells on hillshading. Groundwater opacity ranges from 0% to 100% (default: 55%); at 0%, the groundwater overlay is invisible. The terrain toggle controls hillshading in this mode and both hillshading and raised terrain in 3D mode.
 
-「地形比較」では真上から陰影と色面を重ねます。「地下水の色の濃さ」を下げると陰影が見やすくなり、0%では地形だけを確認できます。このモードでは地形の高さを押し出しません。地形の高さ・明暗は地下水量を表さず、細かな地形に重ねても地下水データの実効解像度（約250〜300 km）は変わりません。位置関係の探索に用い、局所的な地下水量や因果関係として解釈しないでください。
+Fine terrain detail does not increase the groundwater product's effective resolution of approximately 250–300 km. Use the overlay to explore geographic context, not to infer valley-scale groundwater conditions or a causal relationship with topography.
 
-## ローカル実行
+## Dataset and interpretation
 
-Node.js 22以上を使用します。
+The bundled data comes from [Copernicus C3S satellite groundwater storage](https://cds.climate.copernicus.eu/datasets/satellite-groundwater-storage?tab=overview), product **v1.0**. The following describes the repository's snapshot, generated on **2026-10-28**, rather than the provider's current catalog:
+
+| Property | Bundled value |
+| --- | --- |
+| Calendar coverage | April 2002–September 2023 |
+| Calendar months | 258 |
+| Observed / missing months | 225 / 33 |
+| Land grid cells | 59,018 |
+| Grid spacing | 0.5° |
+| Effective spatial resolution | Approximately 250–300 km |
+| Reference mean | January 2003–December 2022 |
+| Units | Millimeters of equivalent water height |
+| Map color range | −200 to +200 mm |
+
+Values are **groundwater storage anomalies relative to the reference mean**, not absolute groundwater volume or water-table depth. Blue indicates a positive anomaly and orange a negative anomaly. A positive value means more storage than the reference mean, not necessarily an increase from the previous month.
+
+The map uses one color scale for the entire record. Conversion calculates the 98th percentile of absolute anomalies and rounds it up to a multiple of 50 mm, with a minimum limit of 50 mm. Values outside the range use the endpoint colors; the underlying values remain unchanged.
+
+Uncertainty is taken from the product's `gwsc_uncertainty` variable. Dashed chart lines show value ± supplied uncertainty and do not imply a particular confidence level. Missing values remain `NaN` in the binary files, gaps in the chart, and empty CSV fields. Cells without a finite anomaly are not drawn. Missing months and dates beyond the bundled record are not interpolated or estimated, and the app does not automatically fetch new releases.
+
+Source: Copernicus Climate Change Service (C3S) / ECMWF / GFZ, *C3S Globally Gridded Groundwater Storage Change*, v1.0. DOI: [10.5880/GFZ.C3S_GWSC_v1.0](https://doi.org/10.5880/GFZ.C3S_GWSC_v1.0). Data license: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). See the [official product guide](https://confluence.ecmwf.int/x/sA0nJw) for methodology. The source is converted to Float32, arranged into monthly and cell-series layouts, and gzip-compressed for this app.
+
+### Basemap and terrain sources
+
+The basemap uses the Positron style from [OpenFreeMap](https://openfreemap.org/) / OpenMapTiles / OpenStreetMap, with English place names where available and Latin-script names as a fallback. Terrain and hillshading use [Mapterhorn](https://mapterhorn.com/) Terrarium DEM tiles (512 px), loaded through its [TileJSON endpoint](https://tiles.mapterhorn.com/tilejson.json). See [Mapterhorn attribution](https://mapterhorn.com/attribution/) for elevation sources and terms. Basemap and terrain assets require external network access, including during local development.
+
+## Local development
+
+Use **Node.js 22.12 or later** and npm. A browser with WebGL2 and `DecompressionStream` support is required.
 
 ```sh
 npm ci
 npm run dev
 ```
 
-http://127.0.0.1:5173/ を開きます。変換済みデータを同梱しているため、閲覧にCDS認証は不要です。WebGL2とDecompressionStreamに対応する現行ブラウザーが必要です。
+Open the URL printed by Vite (normally `http://127.0.0.1:5173/`). Converted groundwater data is already included in `static/data/`; Python and CDS authentication are only needed to download or regenerate it.
+
+Run the frontend tests and type checks:
 
 ```sh
 npm test
 npm run check
+```
+
+Build and preview with the GitHub Pages subpath:
+
+```sh
 BASE_PATH=/groundwater-storage npm run build
 BASE_PATH=/groundwater-storage npm run preview
 ```
 
-GitHub Pagesのサブパスは `BASE_PATH` で設定します。SvelteKit 3の設定は `vite.config.ts` 内の `sveltekit()` オプションにあります。`svelte.config.js` は不要です。
+Open the preview URL with `/groundwater-storage/` appended (normally `http://127.0.0.1:4173/groundwater-storage/`). For hosting at the domain root, omit `BASE_PATH` from both commands. A nonempty base path must start with `/` and must not end with `/`.
 
-## 公式データの再取得・変換
+SvelteKit configuration lives in the `sveltekit()` options in [vite.config.ts](vite.config.ts); this project does not use `svelte.config.js`. The root layout enables prerendering, and the static adapter writes pages and assets to `build/`, including a `404.html` fallback.
 
-Python 3.13以上を推奨します。CDSの利用規約への同意と、公式手順による認証設定が必要です。`.cdsapirc` をプロジェクト直下に置くとダウンロードスクリプトが読み込みます。このファイルはGit管理対象外で、`static/` に置かないでください。
+## Downloading and converting the official data
+
+Python 3.13 is used in CI. Accept the dataset's terms in CDS and configure authentication according to the [CDS API setup instructions](https://cds.climate.copernicus.eu/how-to-api). The download script uses a project-root `.cdsapirc` if present; otherwise it uses the CDS client's normal configuration. `.cdsapirc` and `data-source/` are ignored by Git. Keep credentials outside `static/`.
+
+Run these commands from the repository root:
 
 ```sh
 python3 -m venv .venv
@@ -59,16 +98,25 @@ python3 -m venv .venv
 .venv/bin/python -m unittest discover -s scripts -p 'test_*.py'
 ```
 
-新バージョンへの更新時は `scripts/download_data.py` のCDSリクエストを公式API例に合わせ、取得したファイル名で変換・検証してください。来歴とSHA256は `static/data/manifest.json` に保存します。
+The downloader requests product v1.0, saves `data-source/groundwater-v1_0.zip`, and extracts the single NetCDF file. Use the actual downloaded filename if it differs from the example. To adopt a new product version, update the request in [scripts/download_data.py](scripts/download_data.py) to match the provider's API example, then convert and validate the new file.
 
-- `cells.json`: 原本の配列順に対応した緯度・経度（経度は−180〜180°）
-- `frames/YYYY-MM.bin.gz`: 月別。全格子の偏差、その後に不確実性
-- `series/N.bin.gz`: 256格子ずつ。格子×全暦月の偏差、その後に不確実性
-- バイナリ: little-endian Float32、欠測はNaN。各ファイルをgzip圧縮
-- 全データ約184 MiB。ブラウザーは選んだ月と地点のファイルだけ取得
+The converter defaults to `static/data/` and 256 cells per series chunk. It accepts `--output` and `--chunk-size`; the validator accepts `--output` to check the same directory. When replacing an existing dataset, generate into a fresh directory and validate it before replacing `static/data/`, because conversion does not remove old frame or chunk files.
 
-独立した `validate_data.py` は、全座標・全月・全格子の両変数を原本と照合し、月別と地点別の双方がFloat32精度で完全一致することを検査します。原本NetCDFと認証情報は公開しません。
+### Published data layout
 
-## GitHub Pages
+| File | Contents |
+| --- | --- |
+| `manifest.json` | Calendar months, availability, grid and chunk sizes, color limit, source filename, SHA-256, and generation metadata |
+| `cells.json` | Land cell coordinates in source grid order, with longitude normalized to [−180°, 180°) |
+| `frames/YYYY-MM.bin.gz` | All cell anomalies for one observed month, followed by all cell uncertainties; no frame is generated for a missing month |
+| `series/N.bin.gz` | Zero-based chunks of up to 256 cells, with each cell's full calendar series stored consecutively; all anomalies precede all uncertainties |
 
-リポジトリの Settings → Pages → Source を **GitHub Actions** に設定します。`main` へのpushで `.github/workflows/deploy.yml` がPythonテスト、TypeScriptテスト、型検査、本番ビルドを実行し、`build/` を公開します。CDSキーをActionsに登録する必要はありません。
+Binary values are little-endian Float32, with `NaN` for missing values, and each binary file is gzip-compressed. The bundled data directory is approximately **183 MiB**. The browser first loads the manifest and all cell coordinates, then fetches monthly frames as requested and the series chunk containing a selected cell. It does not download the entire dataset at startup.
+
+[scripts/validate_data.py](scripts/validate_data.py) independently checks the source checksum, every published coordinate, month availability, and both variables across all cells and months in both binary layouts. It requires exact equality at Float32 precision, including missing-value masks. Source NetCDF files and credentials are not included in the static build.
+
+## GitHub Pages deployment
+
+Set the repository's **Settings → Pages → Source** to **GitHub Actions**. The [deployment workflow](.github/workflows/deploy.yml) runs on pushes to `main` and can also be started manually.
+
+It installs dependencies, runs the Python unit tests, frontend tests, and Svelte/TypeScript checks, then builds and deploys `build/`. `BASE_PATH` is supplied by the Pages configuration action. Deployment uses the committed files in `static/data/`; it neither downloads the source dataset nor runs the full NetCDF validation. No CDS key is required in GitHub Actions.
