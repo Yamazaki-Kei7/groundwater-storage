@@ -12,6 +12,7 @@ The app uses SvelteKit 3, Svelte 5, Tailwind CSS 4, MapLibre GL JS 6, and deck.g
 - The initial view shows **3D columns with terrain enabled**, terrain exaggerated by **5×**, and the final month in the bundled record (**September 2023**).
 - Switch between **3D columns** and **Surface**. Both modes use the globe projection; Surface uses flat colored cells and a top-down view for terrain comparison rather than a separate planar map.
 - Step through calendar months or play the timeline at 0.5×, 1×, 2×, or 4× speed. Missing months remain in the timeline. Playback stops at the end; starting playback from the last month restarts from the beginning.
+- Upcoming observations are prefetched, and recently decoded monthly frames are reused from an 8 MiB cache. When a month needs loading, the previous map, displayed date and chart cursor stay together until the new frame is ready. The slider and loading message identify the requested month; a failed load keeps the last successful display and offers Retry.
 - Click a visible cell or enter latitude and longitude to select the nearest land grid cell. The detail panel shows its value, supplied uncertainty, and full time series. Click the chart to select a month.
 - Export the selected cell's time series as CSV with the columns `month`, `gwsc_mm`, and `gwsc_uncertainty_mm`.
 - Optionally fade cells where the absolute anomaly is less than or equal to the supplied uncertainty. This changes their appearance, not their values or CSV output.
@@ -112,6 +113,8 @@ The converter defaults to `static/data/` and 256 cells per series chunk. It acce
 | `series/N.bin.gz` | Zero-based chunks of up to 256 cells, with each cell's full calendar series stored consecutively; all anomalies precede all uncertainties |
 
 Binary values are little-endian Float32, with `NaN` for missing values, and each binary file is gzip-compressed. The bundled data directory is approximately **183 MiB**. The browser first loads the manifest and all cell coordinates, then fetches monthly frames as requested and the series chunk containing a selected cell. It does not download the entire dataset at startup.
+
+Monthly loading prefetches the next two available observations and shares in-flight requests. Decoded monthly frames use a bounded least-recently-used cache; requests outside the current look-ahead window are cancelled. The 8 MiB budget covers cached value and uncertainty arrays, not total browser or GPU memory. Playback overlaps loading with the display interval and waits for late data without skipping calendar months. The map reuses grid geometry while the valid-cell mask stays the same, updating colors and heights independently; terrain sampling is invalidated by camera, elevation-source and terrain-setting changes.
 
 [scripts/validate_data.py](scripts/validate_data.py) independently checks the source checksum, every published coordinate, month availability, and both variables across all cells and months in both binary layouts. It requires exact equality at Float32 precision, including missing-value masks. Source NetCDF files and credentials are not included in the static build.
 

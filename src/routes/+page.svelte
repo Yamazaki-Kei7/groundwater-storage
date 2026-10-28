@@ -3,7 +3,8 @@
   import { asset, resolve } from '$app/paths';
   import GroundwaterMap from '#lib/components/GroundwaterMap.svelte';
   import TimeSeries from '#lib/components/TimeSeries.svelte';
-  import { displayValue, fetchJson, frameCells, loadFrame, loadSeries, nearestCell, seriesCsv } from '#lib/data.ts';
+  import { displayValue, fetchJson, loadFrame, loadSeries, nearestCell, seriesCsv } from '#lib/data.ts';
+  import { createPlayback, emptyPlayback } from '#lib/playback.ts';
   import type { Cell, Frame, Manifest } from '#lib/data.ts';
 
   const dataRoot = asset('data/manifest.json').replace(/\/manifest\.json$/, '');
@@ -17,9 +18,12 @@
   ];
   let manifest = $state<Manifest | null>(null);
   let cells = $state.raw<Cell[]>([]);
-  let frame = $state.raw<Frame | null>(null);
+  let playback = $state.raw({ ...emptyPlayback });
+  let player = $state.raw<ReturnType<typeof createPlayback> | null>(null);
+  let frame = $derived(playback.frame);
   let series = $state.raw<Frame | null>(null);
-  let monthIndex = $state(0);
+  let monthIndex = $derived(playback.index);
+  let requestedIndex = $derived(Math.max(0, playback.requestedIndex));
   let selectedIndex = $state<number | null>(null);
   let regionIndex = $state(0);
   let flat = $state(false);
@@ -28,11 +32,12 @@
   let waterOpacity = $state(55);
   let height = $state(700);
   let soften = $state(false);
-  let playing = $state(false);
+  let playing = $derived(playback.playing);
   let speed = $state(1);
-  let loading = $state(false);
+  let loading = $derived(playback.loading);
   let seriesLoading = $state(false);
-  let error = $state('');
+  let setupError = $state('');
+  let error = $derived(setupError || playback.error);
   let seriesError = $state('');
   let ready = $state(false);
   let retry = $state(0);
@@ -41,8 +46,8 @@
   let latitude = $state<number | undefined>(37);
   let longitude = $state<number | undefined>(137);
   let month = $derived(manifest?.months[monthIndex] ?? '—');
-  let missing = $derived(!!manifest?.ready && !manifest.available[monthIndex]);
-  let mapData = $derived(frameCells(cells, frame));
+  let requestedMonth = $derived(manifest?.months[requestedIndex] ?? '—');
+  let missing = $derived(!!manifest?.ready && monthIndex >= 0 && !manifest.available[monthIndex]);
   let selected = $derived(selectedIndex === null ? null : cells[selectedIndex] ?? null);
   let selectedValue = $derived(selectedIndex === null ? undefined : frame?.values[selectedIndex]);
   let selectedUncertainty = $derived(selectedIndex === null ? undefined : frame?.uncertainty[selectedIndex]);
@@ -57,28 +62,20 @@
         if (!metadata.ready) return;
         cells = await fetchJson<Cell[]>(`${dataRoot}/cells.json`, controller.signal);
         if (cells.length !== metadata.cellCount) throw new Error('Grid count does not match the metadata.');
-        monthIndex = metadata.months.length - 1;
+        player = createPlayback({
+          available: metadata.available,
+          load: (index, signal) => loadFrame(dataRoot, metadata.months[index], metadata.cellCount, signal),
+          onChange: state => { playback = state; }
+        });
+        player.setSpeed(speed);
+        player.select(metadata.months.length - 1);
         ready = true;
-      } catch (e) { if (!controller.signal.aborted) error = e instanceof Error ? e.message : 'Unable to load data.'; }
+      } catch (e) { if (!controller.signal.aborted) setupError = e instanceof Error ? e.message : 'Unable to load data.'; }
     })();
-    return () => controller.abort();
+    return () => { controller.abort(); player?.dispose(); };
   });
 
-  $effect(() => {
-    const metadata = manifest;
-    const requested = monthIndex;
-    void retry;
-    if (!ready || !metadata) return;
-    const controller = new AbortController();
-    frame = null; error = ''; loading = !!metadata.available[requested];
-    if (metadata.available[requested]) {
-      void loadFrame(dataRoot, metadata.months[requested], metadata.cellCount, controller.signal)
-        .then(result => { if (!controller.signal.aborted) frame = result; })
-        .catch(e => { if (!controller.signal.aborted) { error = e instanceof Error ? e.message : 'Unable to load monthly data.'; playing = false; } })
-        .finally(() => { if (!controller.signal.aborted) loading = false; });
-    }
-    return () => controller.abort();
-  });
+  $effect(() => { player?.setSpeed(speed); });
 
   $effect(() => {
     const metadata = manifest, index = selectedIndex;
@@ -94,21 +91,13 @@
     return () => controller.abort();
   });
 
-  $effect(() => {
-    if (!playing || loading || !manifest) return;
-    const last = manifest.months.length - 1;
-    const current = monthIndex;
-    const timer = setTimeout(() => { if (current >= last) playing = false; else monthIndex = current + 1; }, 800 / speed);
-    return () => clearTimeout(timer);
-  });
-
-  function selectMonth(index: number) { playing = false; monthIndex = index; }
+  function selectMonth(index: number) { player?.select(index); }
   function selectCoordinates(event: SubmitEvent) {
     event.preventDefault();
     if (latitude === undefined || longitude === undefined) return;
     selectedIndex = nearestCell(cells, longitude, latitude);
   }
-  function togglePlay() { if (!playing && monthIndex === (manifest?.months.length ?? 0) - 1) monthIndex = 0; playing = !playing; }
+  function togglePlay() { if (playing) player?.pause(); else player?.play(); }
   function downloadCsv() {
     if (!series || !manifest || !selected) return;
     const url = URL.createObjectURL(new Blob([seriesCsv(manifest.months, series)], { type: 'text/csv;charset=utf-8' }));
@@ -182,9 +171,9 @@
 
     <div class="map-and-timeline">
       <section class="map-panel" aria-label="Groundwater storage map">
-        <GroundwaterMap data={mapData} resolution={manifest?.resolution ?? 0.5} {height} {flat} {terrain} {terrainExaggeration} {waterOpacity} colorLimit={manifest?.colorLimit ?? 300} {soften} {selected} region={regions[regionIndex]} onselect={i => selectedIndex = i} />
-        {#if loading}<span class="map-badge" role="status">Loading…</span>{/if}
-        {#if error}<div class="notice" role="alert"><strong>Unable to load data</strong><p>{error}</p><button onclick={() => ready ? retry += 1 : location.reload()}>Retry</button></div>
+        <GroundwaterMap {cells} {frame} resolution={manifest?.resolution ?? 0.5} {height} {flat} {terrain} {terrainExaggeration} {waterOpacity} colorLimit={manifest?.colorLimit ?? 300} {soften} {selectedIndex} region={regions[regionIndex]} onselect={i => selectedIndex = i} />
+        {#if loading}<span class="map-badge" role="status">Loading {requestedMonth}…</span>{/if}
+        {#if error}<div class="notice" role="alert"><strong>Unable to load data{ready ? ` for ${requestedMonth}` : ''}</strong><p>{error}</p><button onclick={() => ready ? player?.retry() : location.reload()}>Retry</button></div>
         {:else if manifest && !manifest.ready}<div class="notice"><strong>Data is being prepared</strong><p>The map and time series will appear when data is available.</p></div>
         {:else if missing}<div class="missing-notice"><strong>No data for {month}</strong><p>Select another month to view observations.</p></div>{/if}
       </section>
@@ -193,13 +182,13 @@
         <div class="timeline-heading"><h2>{month}</h2><span class="timeline-status">Baseline: {manifest?.baselinePeriod ?? '…'}</span></div>
         <div class="timeline-controls">
           <button class="play-button" onclick={togglePlay} disabled={!ready} aria-label={playing ? 'Pause time series' : 'Play time series'}>{playing ? 'Ⅱ' : '▶'}</button>
-          <button class="step-button" onclick={() => selectMonth(monthIndex - 1)} disabled={!ready || monthIndex === 0} aria-label="Previous month">‹</button>
+          <button class="step-button" onclick={() => selectMonth(requestedIndex - 1)} disabled={!ready || requestedIndex === 0} aria-label="Previous month">‹</button>
           <div class="slider-wrap">
-            <label class="sr-only" for="month">Observation month</label><input id="month" type="range" min="0" max={Math.max(0, (manifest?.months.length ?? 1) - 1)} value={monthIndex} oninput={event => selectMonth(Number(event.currentTarget.value))} disabled={!ready} aria-valuetext={month} />
+            <label class="sr-only" for="month">Observation month</label><input id="month" type="range" min="0" max={Math.max(0, (manifest?.months.length ?? 1) - 1)} value={requestedIndex} oninput={event => selectMonth(Number(event.currentTarget.value))} disabled={!ready} aria-valuetext={requestedMonth} />
             <div class="availability" aria-hidden="true">{#each manifest?.available ?? [] as available}<span class:gap={!available}></span>{/each}</div>
             <div class="timeline-years"><span>{manifest?.months[0]?.slice(0, 4) ?? '2002'}</span><span>{manifest?.months[Math.floor((manifest?.months.length ?? 0) / 2)]?.slice(0, 4) ?? ''}</span><span>{manifest?.months.at(-1)?.slice(0, 4) ?? ''}</span></div>
           </div>
-          <button class="step-button" onclick={() => selectMonth(monthIndex + 1)} disabled={!ready || monthIndex >= (manifest?.months.length ?? 1) - 1} aria-label="Next month">›</button>
+          <button class="step-button" onclick={() => selectMonth(requestedIndex + 1)} disabled={!ready || requestedIndex >= (manifest?.months.length ?? 1) - 1} aria-label="Next month">›</button>
           <label class="speed-label"><span class="sr-only">Playback speed</span><select bind:value={speed}><option value={0.5}>0.5×</option><option value={1}>1×</option><option value={2}>2×</option><option value={4}>4×</option></select></label>
         </div>
         <div class="timeline-foot"><span><i></i> Available <i class="gap-key"></i> No data</span></div>
@@ -219,7 +208,7 @@
         <div class="uncertainty-value">Uncertainty <strong>{selectedUncertainty !== undefined && Number.isFinite(selectedUncertainty) ? selectedUncertainty.toFixed(1) : '—'} mm</strong></div>
         {#if seriesLoading}<p class="detail-message" role="status">Loading time series…</p>
         {:else if seriesError}<p role="alert">{seriesError}</p><button class="quiet-button" onclick={() => retry += 1}>Retry</button>
-        {:else if series && manifest}<TimeSeries months={manifest.months} {series} index={monthIndex} onchange={selectMonth} /><button class="export-button" onclick={downloadCsv}>Download CSV <span>↓</span></button>{/if}
+        {:else if series && manifest && monthIndex >= 0}<TimeSeries months={manifest.months} {series} index={monthIndex} onchange={selectMonth} /><button class="export-button" onclick={downloadCsv}>Download CSV <span>↓</span></button>{/if}
       {:else}
         <p class="selection-empty">Select a location on the map</p>
       {/if}
