@@ -1,0 +1,4 @@
+xarray>=2025.1
+netCDF4>=1.7
+numpy>=2.0
+cdsapi>=0.7
