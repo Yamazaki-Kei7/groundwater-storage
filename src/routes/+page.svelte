@@ -23,6 +23,9 @@
   let selectedIndex = $state<number | null>(null);
   let regionIndex = $state(0);
   let flat = $state(false);
+  let terrain = $state(true);
+  let terrainExaggeration = $state(5);
+  let waterOpacity = $state(55);
   let height = $state(700);
   let soften = $state(false);
   let playing = $state(false);
@@ -147,10 +150,23 @@
       </section>
       <section class="control-section">
         <h2><span>02</span> 表示を調整</h2>
-        <div class="flex items-center justify-between"><span class="field-label">データの表示</span><div class="segmented"><button class:active={!flat} onclick={() => flat = false} aria-pressed={!flat}>3D</button><button class:active={flat} onclick={() => flat = true} aria-pressed={flat}>2D</button></div></div>
-        <label class="height-label" for="height">柱の高さ <span>{(height / 1000).toFixed(1)} km / mm</span></label>
-        <input id="height" type="range" min="100" max="2000" step="100" bind:value={height} disabled={flat} />
-        <p class="hint">高さは偏差の大きさを誇張した表現です。</p>
+        <div class="display-mode"><span class="field-label">表示</span><div class="segmented"><button class:active={flat} onclick={() => flat = true} aria-pressed={flat}>地形比較</button><button class:active={!flat} onclick={() => flat = false} aria-pressed={!flat}>3D柱</button></div></div>
+        <label class="checkbox-label"><input type="checkbox" bind:checked={terrain} /><span>地形を表示<small>標高データ：Mapterhorn</small></span></label>
+        {#if !flat}
+          <label class="height-label" for="terrain-exaggeration">地形の高さの誇張 <span>{terrainExaggeration}倍</span></label>
+          <input id="terrain-exaggeration" type="range" min="1" max="10" step="1" bind:value={terrainExaggeration} disabled={!terrain} />
+          <p class="hint">1倍は実際の起伏。地域を選ぶと斜めから表示します。柱の高さとは別の設定です。</p>
+        {/if}
+        {#if flat}
+          <label class="height-label" for="water-opacity">地下水の色の濃さ <span>{waterOpacity}%</span></label>
+          <input id="water-opacity" type="range" min="0" max="100" step="5" bind:value={waterOpacity} />
+          <div class="opacity-directions"><span>地形を見やすく</span><span>偏差を見やすく</span></div>
+          <p class="hint">0%で地形だけを確認。地域を選んで拡大すると、山地・平野と偏差を見比べられます。</p>
+        {:else}
+          <label class="height-label" for="height">柱の高さ <span>{(height / 1000).toFixed(1)} km / mm</span></label>
+          <input id="height" type="range" min="100" max="2000" step="100" bind:value={height} />
+          <p class="hint">高さは偏差の大きさを誇張した表現です。地形との比較には「地形比較」を選択。</p>
+        {/if}
         <label class="checkbox-label"><input type="checkbox" bind:checked={soften} /><span>不確実性の大きいセルを薄くする<small>|偏差| ≤ 提供された不確実性</small></span></label>
       </section>
       <section class="legend-section">
@@ -158,15 +174,16 @@
         <div class="legend-gradient"></div>
         <div class="legend-values"><span>−{manifest?.colorLimit ?? '…'}</span><span>0</span><span>+{manifest?.colorLimit ?? '…'}</span></div>
         <div class="legend-directions"><span>↓ 減少</span><span>増加 ↑</span></div>
-        <p class="hint">全期間で共通の色尺度。端の色は範囲外も含みます。無色の場所はデータなし。</p>
+        <p class="hint">全期間で共通の色尺度。端の色は範囲外も含みます。観測のある格子のみ着色します。</p>
+        {#if terrain}<div class="terrain-key"><span class="relief-swatch" aria-hidden="true"></span><p>{flat ? '明暗：地形の起伏' : `地形の標高：${terrainExaggeration}倍で表示`}<small>地形の高さ・陰影は地下水量を表しません。</small></p></div>{/if}
       </section>
       <div class="sidebar-footer"><span class="source-mark">C3S</span><p>Copernicus Climate Change Service<br /><a href="https://cds.climate.copernicus.eu/datasets/satellite-groundwater-storage?tab=overview" target="_blank" rel="noreferrer">公式データを見る ↗</a></p></div>
     </aside>
 
     <div class="map-and-timeline">
       <section class="map-panel" aria-label="地下水貯留量の地図">
-        <GroundwaterMap data={mapData} resolution={manifest?.resolution ?? 0.5} {height} {flat} colorLimit={manifest?.colorLimit ?? 300} {soften} {selected} region={regions[regionIndex]} onselect={i => selectedIndex = i} />
-        <div class="map-topline"><span class="map-badge"><span class:busy={loading}></span>{loading ? 'データを読み込み中' : missing ? 'この月は観測データなし' : `地球儀 · ${flat ? '2D' : '3D'} · ${regions[regionIndex].name}`}</span><span class="map-date">{month.replace('-', ' / ')}</span></div>
+        <GroundwaterMap data={mapData} resolution={manifest?.resolution ?? 0.5} {height} {flat} {terrain} {terrainExaggeration} {waterOpacity} colorLimit={manifest?.colorLimit ?? 300} {soften} {selected} region={regions[regionIndex]} onselect={i => selectedIndex = i} />
+        <div class="map-topline"><span class="map-badge"><span class:busy={loading}></span>{loading ? 'データを読み込み中' : missing ? 'この月は観測データなし' : `${flat ? '地形比較' : '3D柱'} · ${regions[regionIndex].name}${terrain ? flat ? ' · 陰影あり' : ` · 地形${terrainExaggeration}倍` : ''}`}</span><span class="map-date">{month.replace('-', ' / ')}</span></div>
         <div class="map-instruction">{selected ? '別のセルをクリックして比較' : 'セルをクリックして、その地点の変化をたどる'}<span>ドラッグで地球儀を回転 · スクロールで拡大・縮小</span></div>
         {#if error}<div class="notice" role="alert"><strong>データを読み込めません</strong><p>{error}</p><button onclick={() => ready ? retry += 1 : location.reload()}>再試行</button></div>
         {:else if manifest && !manifest.ready}<div class="notice"><strong>公式データを準備中です</strong><p>観測値が導入されると、地図と時系列を表示します。</p></div>
@@ -208,9 +225,9 @@
         {:else if series && manifest}<TimeSeries months={manifest.months} {series} index={monthIndex} onchange={selectMonth} /><button class="export-button" onclick={downloadCsv}>この地点のCSVを保存 <span>↓</span></button>{/if}
         <p class="hint mt-4">空白は欠測です。グラフをクリックすると月を移動できます。CSVは元の偏差と不確実性を収録します。</p>
       {:else}
-        <div class="selection-empty"><svg width="68" height="68" viewBox="0 0 68 68" aria-hidden="true"><circle cx="34" cy="34" r="23" fill="none" stroke="#385564"/><path d="M34 4v15m0 30v15M4 34h15m30 0h15" stroke="#71d3df"/><circle cx="34" cy="34" r="5" fill="#71d3df"/></svg><h3>気になる場所を選ぶ</h3><p>地図上の柱をクリックすると、<br />2002年からの変化を表示します。</p></div>
+        <div class="selection-empty"><svg width="68" height="68" viewBox="0 0 68 68" aria-hidden="true"><circle cx="34" cy="34" r="23" fill="none" stroke="#385564"/><path d="M34 4v15m0 30v15M4 34h15m30 0h15" stroke="#71d3df"/><circle cx="34" cy="34" r="5" fill="#71d3df"/></svg><h3>気になる場所を選ぶ</h3><p>地図上の色面や柱をクリックすると、<br />2002年からの変化を表示します。</p></div>
       {/if}
-      <div class="reading-guide"><span class="eyebrow">HOW TO READ</span><h3>増えた水、減った水。</h3><p>青は基準期間より多く、橙は少ない状態。柱が高いほど、変化の幅が大きいことを表します。</p><div class="mini-bars" aria-hidden="true"><span class="orange" style="height:28px"></span><span class="orange" style="height:45px"></span><span class="orange" style="height:18px"></span><span class="blue" style="height:25px"></span><span class="blue" style="height:53px"></span><span class="blue" style="height:36px"></span></div><p class="hint">絶対的な地下水量・水位・地中深度ではありません。広域の変動を見るための推定データです。</p></div>
+      <div class="reading-guide"><span class="eyebrow">HOW TO READ</span><h3>地形と、水の変化。</h3><p>青は基準期間より多く、橙は少ない状態。地形比較では、陰影の尾根・盆地と色の分布を見比べます。色を薄くすると地形が見やすくなります。</p><div class="terrain-reading"><span class="relief-swatch" aria-hidden="true"></span><span>明暗で起伏、青・橙で偏差</span></div><p class="hint">地下水の実効解像度は約{manifest?.effectiveResolutionKm ?? '250–300'} km。細かな谷ごとの値や、地形との因果関係を示すものではありません。3D柱の高さは偏差の大きさで、標高・水位・地中深度ではありません。</p></div>
     </aside>
   </main>
 
@@ -218,6 +235,7 @@
     <section class="about-panel" aria-label="データについて">
       <div class="flex justify-between gap-4"><h2>この地図のデータについて</h2><button class="quiet-button" onclick={() => about = false}>閉じる ×</button></div>
       <div class="about-grid"><div><h3>衛星重力から地下水を推定</h3><p>GRACE / GRACE-FOによる陸域の総水貯留量から、氷河・積雪・土壌水分・地表水の変化を差し引いたCopernicus C3S Level-4製品です。{manifest?.baselinePeriod ?? '提供元の基準期間'}の平均に対する偏差をmm相当水高で示します。</p></div><div><h3>解像度と不確実性</h3><p>格子間隔は{manifest?.resolution ?? 0.5}°ですが、実効的な空間解像度は約{manifest?.effectiveResolutionKm ?? '250–300'} kmです。地点の値も広域の推定を表します。不確実性は提供元の値をそのまま使用し、欠測を補間していません。</p></div><div><h3>出典・加工</h3><p>Copernicus Climate Change Service (C3S) / ECMWF / GFZ · {manifest?.version ?? 'v1.0'} · CC BY 4.0。NetCDFをFloat32に変換・圧縮して表示。最新月は{manifest?.months.at(-1) ?? '公式カタログを参照'}です。</p><a href="https://confluence.ecmwf.int/x/sA0nJw" target="_blank" rel="noreferrer">公式製品ガイド ↗</a><a href={`${dataRoot}/manifest.json`} target="_blank" rel="noreferrer">データの来歴・SHA256 ↗</a></div></div>
+      <p class="terrain-source-note">立体地形と陰影は <a href="https://mapterhorn.com/" target="_blank" rel="noreferrer">Mapterhorn</a> の標高タイルから描画しています。3D柱では地形の高さを初期値5倍で誇張し、柱をセル中心の地表の高さに配置します。地形比較では真上から陰影と色面を重ねて表示します。地形と背景地図は外部通信で取得します。<a href="https://mapterhorn.com/attribution/" target="_blank" rel="noreferrer">地形データの出典・利用条件 ↗</a></p>
     </section>
   {/if}
   <footer class="app-footer"><span>GROUNDWATER ATLAS <span class="footer-divider">/</span> 地球の水を、長い時間軸で。</span><span>Copernicus C3S · CC BY 4.0 <span class="footer-divider">/</span> MapLibre & deck.gl</span></footer>

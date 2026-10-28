@@ -6,6 +6,8 @@
 - SvelteKit 3 / Svelte 5 / Tailwind CSS 4 / MapLibre GL JS 6 / deck.gl 9
 - ドラッグで地球儀を回転、スクロール・ピンチで拡大縮小
 - 世界・日本・インド・北米・欧州・アマゾンの表示、球面上のデータの3D柱/2D表示切替、高さ調整
+- Mapterhornの立体地形と「3D柱」を初期表示。地形の標高は初期値5倍（1〜10倍で調整）、柱の高さとは独立して設定
+- 陰影地形と半透明の色面を重ねる「地形比較」に切替可能。地形のオン／オフと色の濃さを調整可能
 - 月別再生、欠測の表示、地点選択、提供された不確実性、時系列・CSV出力
 
 ## データの意味
@@ -18,7 +20,11 @@
 
 出典: Copernicus Climate Change Service (C3S) / ECMWF / GFZ, *C3S Globally Gridded Groundwater Storage Change*, v1.0. DOI: [10.5880/GFZ.C3S_GWSC_v1.0](https://doi.org/10.5880/GFZ.C3S_GWSC_v1.0)。データ利用条件は [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。原本からFloat32配列への変換・並べ替え・gzip圧縮を行っています。詳しくは[公式製品ガイド](https://confluence.ecmwf.int/x/sA0nJw)をご覧ください。
 
-背景地図は [OpenFreeMap](https://openfreemap.org/) / OpenMapTiles / OpenStreetMap。背景地図へのアクセスには外部通信を使用します。
+背景地図は [OpenFreeMap](https://openfreemap.org/) / OpenMapTiles / OpenStreetMap。地形は [Mapterhorn](https://mapterhorn.com/) のTerrarium標高タイル（512 px）を [公式TileJSON](https://tiles.mapterhorn.com/tilejson.json) から読み込み、陰影として描画します。背景地図と地形の取得には外部通信を使用します。地形の原データと利用条件は [Mapterhornの出典一覧](https://mapterhorn.com/attribution/) を参照してください。
+
+初期表示の「3D柱」ではMapterhornの標高を立体化し、起伏を5倍に誇張します。「地形の高さの誇張」で1〜10倍に変更でき、1倍は実際の標高です。地域を選ぶと45°の俯角になり、拡大すると山地の起伏を見比べられます。柱の根元はセル中心の地表標高に合わせ、高さは偏差の絶対値を別の尺度で表します。地形が見えるよう、立体地形を表示する間は柱の幅を細くします。
+
+「地形比較」では真上から陰影と色面を重ねます。「地下水の色の濃さ」を下げると陰影が見やすくなり、0%では地形だけを確認できます。このモードでは地形の高さを押し出しません。地形の高さ・明暗は地下水量を表さず、細かな地形に重ねても地下水データの実効解像度（約250〜300 km）は変わりません。位置関係の探索に用い、局所的な地下水量や因果関係として解釈しないでください。
 
 ## ローカル実行
 
