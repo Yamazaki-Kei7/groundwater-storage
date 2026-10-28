@@ -53,6 +53,6 @@ Files: .github/workflows/deploy.yml, README.md, static/data/*.
 
 - [x] CDS設定が利用可能になったら公式データを取得し、SHA256を記録して変換。
 - [x] 原本と出力のセル値・時刻・欠測・不確実性を照合。
-- [ ] GitHubリポジトリとPagesを設定し、Actionsでデプロイ。
+- [x] GitHubリポジトリとPagesを設定し、Actionsでデプロイ。
 - [x] 独立レビュー、全テスト・型検査・ビルドを実施。
-- [ ] 公開URLで3D・時系列・データロードを確認。
+- [x] 公開URLで3D・時系列・データロードを確認。

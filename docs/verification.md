@@ -36,3 +36,13 @@ Playwright/Chromiumで確認。
 読み取り専用のコードレビューで、欠測・非同期競合・数値配列・サブパス・秘密情報除外を確認。指摘されたキーボードでの地点選択とモード変更時の閲覧位置保持を修正。基準期間も原本メタデータから表示するよう修正した。
 
 `.cdsapirc`はignoreに一致し、追跡ファイルに含まれないことを確認。CDS認証情報や原本NetCDFは公開用`build/`に含めない。
+
+## 公開環境
+
+- 公開URL: https://yamazaki-kei7.github.io/groundwater-storage/
+- [GitHub Actions実行40612455954](https://github.com/Yamazaki-Kei7/groundwater-storage/actions/runs/40612455954): build/deployとも成功（2026-10-28 01:02 UTC）
+- 初回のクリーン環境で生成済みtsconfigがない問題を発見し、`npm test`の前段に`svelte-kit sync`を追加。次のActionsで全検査が成功
+- 公開URLの実ブラウザーで、3D柱、地域切替、月データ、地点時系列、欠測月の空欄表示を確認。コンソールエラー0、画面のエラー通知0
+- 公開環境でも36.75°N / 136.75°E、2023-09の+7.2 mmを確認
+- 手動パン後の2D→3D→2Dで中心付近の選択格子が26.25°N / 76.75°Eのまま保たれることを確認
+- 背景地図スタイルの任意アイコン`circle-11`欠落警告が1件あるが、背景地図と地下水描画・地点選択には影響なし
