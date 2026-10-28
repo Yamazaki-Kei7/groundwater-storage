@@ -37,7 +37,7 @@ export function nearestCell(cells: Cell[], lon: number, lat: number): number | n
 }
 
 export function decodeFrame(buffer: ArrayBuffer, cellCount: number): Frame {
-  if (buffer.byteLength !== cellCount * 2 * 4) throw new Error('データの長さが格子数と一致しません。');
+  if (buffer.byteLength !== cellCount * 2 * 4) throw new Error('Data length does not match the grid count.');
   const view = new DataView(buffer);
   const values = new Float32Array(cellCount);
   const uncertainty = new Float32Array(cellCount);
@@ -50,7 +50,7 @@ export function decodeFrame(buffer: ArrayBuffer, cellCount: number): Frame {
 
 export function decodeSeries(buffer: ArrayBuffer, localIndex: number, chunkCells: number, monthCount: number): Frame {
   const decoded = decodeFrame(buffer, chunkCells * monthCount);
-  if (localIndex < 0 || localIndex >= chunkCells) throw new Error('地点インデックスが範囲外です。');
+  if (localIndex < 0 || localIndex >= chunkCells) throw new Error('Location index is out of range.');
   const start = localIndex * monthCount;
   return { values: decoded.values.slice(start, start + monthCount), uncertainty: decoded.uncertainty.slice(start, start + monthCount) };
 }
@@ -81,13 +81,13 @@ export function seriesCsv(months: string[], frame: Frame): string {
 
 export async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { signal });
-  if (!response.ok) throw new Error(`データを取得できません（HTTP ${response.status}）。`);
+  if (!response.ok) throw new Error(`Unable to load data (HTTP ${response.status}).`);
   return response.json() as Promise<T>;
 }
 
 export async function loadBinary(url: string, signal?: AbortSignal): Promise<ArrayBuffer> {
   const response = await fetch(url, { signal });
-  if (!response.ok) throw new Error(`データを取得できません（HTTP ${response.status}）。`);
+  if (!response.ok) throw new Error(`Unable to load data (HTTP ${response.status}).`);
   const buffer = await response.arrayBuffer();
   const bytes = new Uint8Array(buffer);
   // Vite sends Content-Encoding: gzip; Pages can serve the gzip file itself.

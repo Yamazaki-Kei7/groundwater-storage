@@ -15,30 +15,30 @@
   }
 </script>
 
-<div class="chart-labels"><span>+{Math.ceil(limit)} mm</span><span>貯留量偏差 / 不確実性</span></div>
-<button class="chart" aria-label="時系列グラフ。クリックで月を選択。キーボードでは下の月スライダーを使用" onclick={choose}>
-  <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${months[index]}の偏差 ${displayValue(series.values[index])} mm`}>
+<div class="chart-labels"><span>+{Math.ceil(limit)} mm</span><span>Anomaly</span></div>
+<button class="chart" aria-label="Time series. Click to select a month, or use the observation month slider with the keyboard." onclick={choose}>
+  <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${months[index]} anomaly ${displayValue(series.values[index])} mm`}>
     <line x1="0" x2={width} y1="0" y2="0" class="grid" />
     <line x1="0" x2={width} y1={height / 2} y2={height / 2} class="zero" />
     <line x1="0" x2={width} y1={height} y2={height} class="grid" />
     {#each upper.concat(lower) as path}<path d={path} class="uncertainty" />{/each}
     {#each paths as path}<path d={path} class="series" />{/each}
     <line x1={currentX} x2={currentX} y1="0" y2={height} class="cursor" />
-    {#if Number.isFinite(series.values[index])}<circle cx={currentX} cy={currentY} r="4" fill="#f3fafc" />{/if}
+    {#if Number.isFinite(series.values[index])}<circle cx={currentX} cy={currentY} r="4" fill="#21647d" />{/if}
   </svg>
 </button>
-<div class="chart-labels"><span>−{Math.ceil(limit)} mm</span><span>破線：値 ± 提供された不確実性</span></div>
+<div class="chart-labels"><span>−{Math.ceil(limit)} mm</span><span>Dashed: ± uncertainty</span></div>
 <div class="chart-years"><span>{months[0]?.slice(0, 4)}</span><span>{months[Math.floor(months.length / 2)]?.slice(0, 4)}</span><span>{months.at(-1)?.slice(0, 4)}</span></div>
 
 <style>
   .chart { display: block; width: 100%; background: transparent; border: 0; padding: 10px 0; cursor: crosshair; }
   svg { width: 100%; overflow: visible; }
-  .chart-labels, .chart-years { display: flex; justify-content: space-between; color: #9baebd; font-size: 10px; font-variant-numeric: tabular-nums; }
+  .chart-labels, .chart-years { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
   .chart-years { margin-top: 10px; }
   path { fill: none; vector-effect: non-scaling-stroke; stroke-linecap: round; }
-  .series { stroke: #5fcee9; stroke-width: 1.7; }
-  .uncertainty { stroke: #6e899a; stroke-width: 1; stroke-dasharray: 3 3; opacity: .65; }
-  .grid { stroke: #283f4d; stroke-dasharray: 3 5; }
-  .zero { stroke: #4c6575; }
-  .cursor { stroke: #e8f2f8; opacity: .6; stroke-dasharray: 4 4; }
+  .series { stroke: var(--accent); stroke-width: 1.7; }
+  .uncertainty { stroke: #84939c; stroke-width: 1; stroke-dasharray: 3 3; opacity: .65; }
+  .grid { stroke: var(--border); stroke-dasharray: 3 5; }
+  .zero { stroke: #bac4cb; }
+  .cursor { stroke: #52636e; opacity: .6; stroke-dasharray: 4 4; }
 </style>
