@@ -28,6 +28,10 @@
   // A constant depth bias keeps surface cells above the globe's finer mesh,
   // without disabling far-side occlusion or changing the data's elevation.
   const surfaceDepth = { depthBias: 0, depthBiasSlopeScale: -100 };
+  // Fill colours blend from neutral toward the sign's colour as |value| nears the limit.
+  const neutralColor = [139, 157, 167];
+  const negativeColor = [240, 149, 79];
+  const positiveColor = [54, 183, 229];
   let { cells, frame, resolution, height, flat, terrain, terrainExaggeration, waterOpacity, colorLimit, soften, selectedIndex, region, onselect }: {
     cells: Cell[]; frame: Frame | null; resolution: number; height: number; flat: boolean;
     terrain: boolean; terrainExaggeration: number; waterOpacity: number;
@@ -43,11 +47,16 @@
   let beforeLabels = $state<string | undefined>();
   let groundElevations = $state.raw<ReadonlyMap<number, number>>(new Map());
   let groundDirty = true;
-  let selectedGround = $state(0);
   let selected = $derived(selectedIndex === null ? null : cells[selectedIndex] ?? null);
   let selectedValue = $derived(selectedIndex === null ? undefined : frame?.values[selectedIndex]);
   let geometry = $derived(createCellGeometry(cells));
   let data = $derived(geometry.forFrame(frame));
+  // Selection can change while the camera and DEM remain idle; groundElevations marks a terrain refresh.
+  let selectedGround = $derived.by(() => {
+    void groundElevations;
+    const elevation = map && terrain && !flat && selected ? map.queryTerrainElevation([selected.lon, selected.lat]) : null;
+    return elevation !== null && Number.isFinite(elevation) ? elevation : 0;
+  });
 
   function visibleCell({ object, viewport, coordinate, x, y }: PickingInfo<IndexedCell>): MapCell | null {
     const index = object?.index ?? -1;
@@ -77,8 +86,6 @@
     if (!map || flat || !terrain || !groundDirty) return;
     groundDirty = false;
     const bounds = map.getBounds();
-    const selectedElevation = selected ? map.queryTerrainElevation([selected.lon, selected.lat]) : null;
-    selectedGround = selectedElevation !== null && Number.isFinite(selectedElevation) ? selectedElevation : 0;
     const elevations = new Map<number, number>();
     let elevationsChanged = false;
     for (let index = 0; index < cells.length; index++) {
@@ -191,19 +198,12 @@
     groundDirty = true;
     map.setLayoutProperty(hillshadeId, 'visibility', terrain ? 'visible' : 'none');
     map.setTerrain(terrain && !flat ? { source: elevationSource, exaggeration: terrainExaggeration } : null);
-    if (flat || !terrain) { groundElevations = new Map(); selectedGround = 0; }
+    if (flat || !terrain) groundElevations = new Map();
   });
 
   $effect(() => {
     void cells;
     if (map && styleReady) untrack(() => { groundDirty = true; refreshGroundElevations(); });
-  });
-
-  $effect(() => {
-    // Selection can change while the camera and DEM remain idle.
-    void groundElevations;
-    const elevation = map && terrain && !flat && selected ? map.queryTerrainElevation([selected.lon, selected.lat]) : null;
-    selectedGround = elevation !== null && Number.isFinite(elevation) ? elevation : 0;
   });
 
   $effect(() => {
@@ -236,11 +236,9 @@
           const uncertainty = currentFrame?.uncertainty[index];
           const ratio = Math.min(Math.abs(value) / Math.max(colorLimit, 1), 1);
           const alpha = soften && uncertainty !== undefined && Number.isFinite(uncertainty) && Math.abs(value) <= uncertainty ? baseAlpha * 75 / 220 : baseAlpha;
-          return [
-            Math.round(139 + ((value < 0 ? 240 : 54) - 139) * ratio),
-            Math.round(157 + ((value < 0 ? 149 : 183) - 157) * ratio),
-            Math.round(167 + ((value < 0 ? 79 : 229) - 167) * ratio), alpha
-          ];
+          const target = value < 0 ? negativeColor : positiveColor;
+          const blend = (i: number) => Math.round(neutralColor[i] + (target[i] - neutralColor[i]) * ratio);
+          return [blend(0), blend(1), blend(2), alpha];
         },
         stroked: false, material: { ambient: 0.7, diffuse: 0.5, shininess: 12 },
         onClick: (info: PickingInfo<IndexedCell>) => { const object = visibleCell(info); if (object) onselect(object.index); },

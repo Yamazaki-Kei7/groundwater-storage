@@ -67,7 +67,6 @@
           load: (index, signal) => loadFrame(dataRoot, metadata.months[index], metadata.cellCount, signal),
           onChange: state => { playback = state; }
         });
-        player.setSpeed(speed);
         player.select(metadata.months.length - 1);
         ready = true;
       } catch (e) { if (!controller.signal.aborted) setupError = e instanceof Error ? e.message : 'Unable to load data.'; }

@@ -18,7 +18,6 @@ export function createPlayback({ available, load, onChange, intervalMs = 800, ma
   let state = { ...emptyPlayback };
   let speed = 1;
   let displayedAt = 0;
-  let revision = 0;
   let disposed = false;
   let automatic = false;
   let active: AbortController | null = null;
@@ -47,7 +46,6 @@ export function createPlayback({ available, load, onChange, intervalMs = 800, ma
     const controller = new AbortController();
     active = controller;
     automatic = auto;
-    const version = ++revision;
     const upcoming: number[] = [];
     for (let next = index + 1; next < available.length && upcoming.length < prefetchCount; next++) {
       if (available[next]) upcoming.push(next);
@@ -56,7 +54,7 @@ export function createPlayback({ available, load, onChange, intervalMs = 800, ma
     update({ requestedIndex: index, loading: true, error: '' });
 
     const commit = (frame: Frame | null) => {
-      if (disposed || version !== revision || controller.signal.aborted) return;
+      if (disposed || controller.signal.aborted) return;
       active = null;
       displayedAt = performance.now();
       update({ index, frame, loading: false });
@@ -66,7 +64,7 @@ export function createPlayback({ available, load, onChange, intervalMs = 800, ma
     if (!available[index]) commit(null);
     else if (cached) commit(cached);
     else void store.get(index, controller.signal).then(commit).catch(error => {
-      if (disposed || version !== revision || controller.signal.aborted) return;
+      if (disposed || controller.signal.aborted) return;
       active = null;
       update({ loading: false, playing: false, error: error instanceof Error ? error.message : 'Unable to load monthly data.' });
     });
@@ -77,7 +75,6 @@ export function createPlayback({ available, load, onChange, intervalMs = 800, ma
   function pause() {
     clearTimer();
     if (automatic && state.loading) {
-      revision++;
       active?.abort(); active = null;
       store.retain([]);
       update({ playing: false, loading: false, requestedIndex: state.index });
@@ -102,7 +99,6 @@ export function createPlayback({ available, load, onChange, intervalMs = 800, ma
 
   function dispose() {
     disposed = true;
-    revision++;
     clearTimer();
     active?.abort();
     store.dispose();
