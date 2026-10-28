@@ -1,7 +1,12 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: "IBM Plex Sans Variable", "Helvetica Neue", Arial, sans-serif;
+}
+
 :root {
-  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-sans);
+  font-variant-numeric: lining-nums tabular-nums;
   color: var(--text);
   background: var(--surface);
   font-synthesis: none;
@@ -109,6 +114,7 @@ h2 { font-size: 13px; font-weight: 600; }
 .about-grid a, .terrain-source-note a { color: var(--accent); text-decoration: underline; }
 .about-grid a { display: inline-block; font-size: 11px; margin: 12px 12px 0 0; }
 .terrain-source-note { border-top: 1px solid var(--border); margin-top: 20px; padding-top: 20px; }
+.map-canvas.maplibregl-map, .maplibregl-map .maplibregl-ctrl-scale { font-family: var(--font-sans); }
 .maplibregl-ctrl-group { background: var(--surface) !important; box-shadow: 0 0 0 1px var(--border) !important; }
 .maplibregl-ctrl-attrib, .maplibregl-ctrl-scale { font-size: 9px !important; }
 @media (min-width: 1100px) {
